@@ -48,9 +48,9 @@ Hopefully, the figure below conveys the point that the actual cache scan is done
 
 When searching a Threaded AVL tree for a node with a matching key, the result is not a clear success or failure. The search returns a valid pointer to the node that has a key which is equal to or smaller than the LBA to be searched. An invalid pointer (i.e. NULL) indicates that there is no node with such key.
 
-The reason for returning the node with a key that is equal to or smaller than the LBA is that such node is the node with the lowest key that may have an overlap with LBA range searched.
+The reason for returning the node with a key that is equal to or smaller than the LBA is that such node is the one with the lowest key that may have an overlap with LBA range searched.
 
-The examples in the figure below show why TAVL search needs to return a node with a key that is equal to or smaller than the LBA searched. Depending on the range, such node may or may not overlap with the LBA range searched. Traversing the thread to the right will pass all nodes that overlap with the LBA range searched.
+The examples in the figure below show why TAVL search needs to return a node with a key that is equal to or smaller than the LBA being searched. Depending on the range, such node may or may not overlap with the LBA range. Traversing the thread to the right will pass all nodes that overlap with the LBA range being searched.
 
 ### Examples of TAVL search
 ![left_node](./images/left_node.png)
@@ -65,7 +65,7 @@ The free list will eventually become empty and the oldest cache segment needs to
 
 The dirty list contains cache segments for write data. A cache segment in the dirty list cannot be moved to other lists till the write data is written to the media. Once the write data is written, the node can be moved to the LRU list or the free list. Cache segments in the dirty list do not have to be ordered based on the time. Block devices may apply reodering schemes like elevator reordering or three-dimensional reordering. Certain reordering scheme may require more than one list to manage cache segments before and after reodering. This project simply uses a linked list and does not include any reordering scheme or any list structure for reordering scheme.
 
-The locked list may contain simply promoted cache segments - promoted as there were cache hits for those. In such case, the locked list acts like the LRU list and whichever oldest cache segment in the locked list gets demoted into the LRU list. In another case where the locked list contains truly locked cache segments, each cache segment needs to have a reference counter that prevents the cache segment from getting removed from the locked list till the counter decrements to 0. This is typical in a system where cache search and cache update are independently done in separate threads.
+The locked list may contain promoted cache segments - promoted as there were cache hits for those, implying that there might be future cache hits on those. In such case, the locked list acts like the LRU list and whichever oldest cache segment in the locked list gets demoted into the LRU list when necessary. In another case where the locked list contains truly locked cache segments, each cache segment needs to have a reference counter that prevents the cache segment from getting removed from the locked list till the counter decrements to 0. This is typical in a system where cache search and cache update are independently done in separate threads.
 
 ### Simplified diagram of the overall construction
 ![tavl_tree_with_lru_dirty](./images/tavl_tree_with_lru_dirty.png)
@@ -84,26 +84,26 @@ How exactly this TAVL caching scheme can be used in block devices largely depend
 
 For example, if a storage controller supports SGL buffer, 
 - multiple cache segments with consecutive LBA ranges, can be merged together to form a single buffer to be managed and transferred
-- a cache segment with an LBA range that partially invalidate by a new LBA range can be shrunken to keep a valid range, instead of thrown away
+- a cache segment with an LBA range that gets partially invalidated by a new LBA range can be shrunken to keep a valid range, instead of getting thrown away
 
-This is why TAVL cache search returns only the node to start traversing.
+This is why TAVL cache search in this implementation only returns the node to start traversing. Depending on whether SGL buffer is supported, the caller can either invalidate or shrink all cache segments with overlap.
 
 With SGL buffer, TAVL search result for write will be handled as following.
 * TAVL search returns a cache segment
-* By comparing the LBA ranges, check if the first part of the required LBA range exist in the cache segment
-* Traverse to the right cache segment in the thread till the cache segment has LBA that is outside of required LBA range
+* By comparing the LBA ranges, check if the first part of the required LBA range exists in the cache segment
+* Traverse to the right cache segment in the thread till the cache segment has an LBA that is outside of the required LBA range
 * Invalidate either partial or full range of cache segments that overlap with the write range - do not stop at a gap
 * If partially invalidated, keep the cache segment and just free the portion of the buffer. If fully invalidated, move the invalidated cache segment to the free list
 * Insert the new cache segment into the TAVL tree and the dirty list
 
-Without SGL buffer, TAVL search result for write will be handled similarly but without freeing the portion of the buffer. 
+Without SGL buffer, TAVL search result for write will be handled similarly but without freeing a portion of the buffer. 
 
-For write, data coherency is managed by invalidating all ranges that overlap with the new range.
+For write, data coherency is managed by invalidating all cache segments that overlap with the new range.
 
 With SGL buffer, TAVL search result for read will be handled as following.
 * TAVL search returns a cache segment
-* By comparing the LBA ranges, check if the first part of the required LBA range exist in the cache segment
-* Traverse to the right cache segment in the thread till the cache segment has LBA that is outside of required LBA range, or there is a gap
+* By comparing the LBA range, check if the first part of the required LBA range exist in the cache segment
+* Traverse to the right cache segment in the thread till a cache segment with an LBA that is outside of required LBA range, or till there is a gap
 * Merge all sequential cache segments for host transfer
 * If there are more blocks to read, start media read operation
 
@@ -114,8 +114,8 @@ The test code in main.c,
 - creates 100 cache segments into the free pool,
 - assigns a random LBA [0.1999] with random number of blocks [10..29] to each cache segment,
 - inserts each cache segment into TAVL tree and LRU list,
-- finds & invalidates any cache segments in the TAVL tree with range overlap to maintain coherency,
-- then removes each and every cache segments in the thread,
+- finds & invalidates any cache segments in the TAVL tree with range overlap, to maintain coherency,
+- then removes each and every cache segment in the thread,
 - checks if both the TAVL tree and the LRU list are empty.
 
 It assumes that any cache segments with overlap need to be invalidated & freed. In other words, it behaves like there is no buffer SGL support.
