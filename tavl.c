@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include "tavl.h"
@@ -340,4 +341,32 @@ segment_t *freeNode(segment_t *root, segment_t *x) {
     // Remove the node from AVL tree & return the new root
     cacheMgmt.active_nodes--;
     return removeNode(root, x);
+}
+
+segment_t *dumpPathToKey(segment_t *head, unsigned lba) {
+    if (NULL == head) {
+        printf("Unknown Key\n");
+        return NULL;
+    }
+    unsigned k = head->key;
+    if (lba == k) {
+        printf("(%d..%d)\n", lba, lba+head->numberOfBlocks);
+        return head;
+    }
+    if (k > lba) {
+        if (NULL==head->left) {
+            printf("Unknown Key\n");
+            return head->lower;
+        }
+        printf("l-");
+        return dumpPathToKey(head->left, lba);
+    }
+    if (k < lba) {
+        if (NULL==head->right) {
+            printf("Unknown Key\n");
+            return head;
+        }
+        printf("r-");
+        return dumpPathToKey(head->right, lba);
+    }
 }

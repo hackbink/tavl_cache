@@ -183,4 +183,13 @@ extern segment_t *insertToTavl(segment_t *head, segment_t *x);
  */
 extern segment_t *freeNode(segment_t *root, segment_t *x);
 
+/**
+ *  @brief  Searches the given TAVL tree for the given LBA and dump the path
+ *  @param  segment_t *head - a node in the AVL tree, or NULL
+ *          unsigned lba - an LBA to be searched
+ *  @return The node that contains a key that is equal or smaller than the given LBA, or NULL
+ */
+extern segment_t *dumpPathToKey(segment_t *head, unsigned lba);
+
+
 #endif // __TAVL_H

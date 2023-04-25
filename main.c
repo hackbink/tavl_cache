@@ -69,10 +69,13 @@ void main(void) {
     tNode=cacheMgmt.lowest.higher;
     currentLba=0;
     currentNB=0;
+    i=0;
     while (tNode!=&cacheMgmt.highest) {
         // Make sure this segment has an LBA that is equal or bigger than previous LBA + number of blocks
         assert(tNode->key>=currentLba+currentNB);
         currentLba=tNode->key;
+        (void)dumpPathToKey(cacheMgmt.root, currentLba);
+        i++;
         currentNB=tNode->numberOfBlocks;
         tNode=tNode->higher;
     }

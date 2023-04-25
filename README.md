@@ -115,7 +115,57 @@ The test code in main.c,
 - assigns a random LBA [0.1999] with random number of blocks [10..29] to each cache segment,
 - inserts each cache segment into TAVL tree and LRU list,
 - finds & invalidates any cache segments in the TAVL tree with range overlap, to maintain coherency,
+- once all cache segments (except the ones invalidated due to an overlap) are in TAVL tree, dump the content of the TAVL tree,
 - then removes each and every cache segment in the thread,
 - checks if both the TAVL tree and the LRU list are empty.
 
 It assumes that any cache segments with overlap need to be invalidated & freed. In other words, it behaves like there is no buffer SGL support.
+
+Example of TAVL tree dump :
+
+`
+l-l-l-l-l-(49..73)
+l-l-l-l-(75..87)
+l-l-l-(132..142)
+l-l-l-r-l-(166..182)
+l-l-l-r-(198..212)
+l-l-(213..226)
+l-l-r-(247..268)
+l-l-r-r-(288..306)
+l-l-r-r-r-(331..349)
+l-(354..371)
+l-r-l-l-l-(483..506)
+l-r-l-l-l-r-(543..558)
+l-r-l-l-(573..583)
+l-r-l-l-r-(587..605)
+l-r-l-(623..638)
+l-r-l-r-l-(689..711)
+l-r-l-r-(749..772)
+l-r-l-r-r-(782..797)
+l-r-(797..825)
+l-r-r-l-l-(829..857)
+l-r-r-l-l-r-(900..914)
+l-r-r-l-(950..977)
+l-r-r-(979..1002)
+l-r-r-r-l-(1060..1071)
+l-r-r-r-(1093..1110)
+l-r-r-r-r-(1192..1208)
+(1258..1276)
+r-l-l-(1299..1321)
+r-l-l-r-(1342..1360)
+r-l-(1388..1403)
+r-l-r-(1434..1449)
+r-(1502..1515)
+r-r-l-l-l-(1552..1580)
+r-r-l-l-(1581..1592)
+r-r-l-(1597..1623)
+r-r-l-r-l-(1662..1682)
+r-r-l-r-l-r-(1684..1709)
+r-r-l-r-(1751..1778)
+r-r-(1787..1813)
+r-r-r-l-(1849..1871)
+r-r-r-l-r-(1871..1900)
+r-r-r-l-r-r-(1904..1919)
+r-r-r-(1952..1964)
+r-r-r-r-(1967..1979)
+`
