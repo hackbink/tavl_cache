@@ -123,7 +123,11 @@ It assumes that any cache segments with overlap need to be invalidated & freed. 
 
 Example of TAVL tree dump :
 
-`
+l-l-l-l-l-(49..73) : From the root, take left-left-left-left-left to arrive to the node with LBA from 49 till 73.
+
+(1258..1276) : The root of the TAVL tree with LBA from 1258 till 1276.
+
+```
 l-l-l-l-l-(49..73)
 l-l-l-l-(75..87)
 l-l-l-(132..142)
@@ -168,4 +172,4 @@ r-r-r-l-r-(1871..1900)
 r-r-r-l-r-r-(1904..1919)
 r-r-r-(1952..1964)
 r-r-r-r-(1967..1979)
-`
+```
