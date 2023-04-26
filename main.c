@@ -8,13 +8,15 @@
 //-----------------------------------------------------------
 // Global variables
 //-----------------------------------------------------------
-segment_t node[NUM_OF_SEGMENTS];
+segment_t segment[NUM_OF_SEGMENTS];
+tavl_node_t node[NUM_OF_SEGMENTS];
 cManagement_t cacheMgmt;
 
 void main(void) {
     time_t t;
     unsigned i;
-    segment_t *tNode, *nextNode, *cNode;
+    segment_t *tSeg, *cSeg, *nextSeg;
+    tavl_node_t *cNode;
     unsigned currentLba, currentNB;
 
     // srand(time(NULL)) initializes the random seed with the current time.
@@ -34,71 +36,72 @@ void main(void) {
     initCache();
     // Insert NUM_OF_SEGMENTS segments into the TAVL tree.
     for (i = 0; i < NUM_OF_SEGMENTS; i++) {
-        tNode=popFromHead(&cacheMgmt.free);
-        tNode->key = rand() % 2000;
-        tNode->numberOfBlocks = 10+(rand()%20);
-        cNode=searchTavl(cacheMgmt.root, tNode->key);
-        if ((NULL!=cNode)&&(&cacheMgmt.lowest!=cNode)) {
-            printf("searchTavl(%d) returned cNode:%p with LBA range [%d..%d]\n", tNode->key, cNode, cNode->key, (cNode->key+cNode->numberOfBlocks));
-            if ((cNode->key+cNode->numberOfBlocks)>tNode->key) {
-                printf("%dth LBA range [%d..%d] hits with [%d..%d]. Invalidating...\n", i, tNode->key, (tNode->key+tNode->numberOfBlocks), cNode->key, (cNode->key+cNode->numberOfBlocks));
-                // Invalidate the existing cache segment before inserting the new one.
-                segment_t *cNodeCopy=cNode;
-                cacheMgmt.root=freeNode(cacheMgmt.root, cNode);
+        tSeg=popFromHead(&cacheMgmt.free);
+        tSeg->key = rand() % 2000;
+        tSeg->numberOfBlocks = 10+(rand()%20);
+        cNode=searchTavl(cacheMgmt.root, tSeg->key);
+        if (NULL!=cNode) {
+            if (&cacheMgmt.lowest!=cNode->pSeg) {
+                printf("searchTavl(%d) returned cNode:%p with LBA range [%d..%d]\n", tSeg->key, cNode, cNode->pSeg->key, (cNode->pSeg->key+cNode->pSeg->numberOfBlocks));
+                if ((cNode->pSeg->key+cNode->pSeg->numberOfBlocks)>tSeg->key) {
+                    printf("%dth LBA range [%d..%d] hits with [%d..%d]. Invalidating...\n", i, tSeg->key, (tSeg->key+tSeg->numberOfBlocks), cNode->pSeg->key, (cNode->pSeg->key+cNode->pSeg->numberOfBlocks));
+                    // Invalidate the existing cache segment before inserting the new one.
+                    cacheMgmt.root=freeNode(cacheMgmt.root, cNode->pSeg);
+                }
             }
         }
-        printf("%dth LBA range [%d..%d] will be inserted\n", i, tNode->key, (tNode->key+tNode->numberOfBlocks));
-        cacheMgmt.root = insertToTavl(cacheMgmt.root, tNode);
-        pushToTail(tNode, &cacheMgmt.lru);
+        printf("%dth LBA range [%d..%d] will be inserted\n", i, tSeg->key, (tSeg->key+tSeg->numberOfBlocks));
+        cacheMgmt.root = insertToTavl(cacheMgmt.root, (tavl_node_t *)(tSeg->pNode));
+        pushToTail(tSeg, &cacheMgmt.lru);
 
         // Manage coherency by invalidating any segment that overlaps with the new one.
-        cNode=tNode->higher;
-        while (&cacheMgmt.highest!=cNode) {
+        cSeg=tSeg->higher;
+        while (&cacheMgmt.highest!=cSeg) {
             // Check if cNode is outside of the new one's range. If yes, stop.
-            if (cNode->key>=(tNode->key+tNode->numberOfBlocks)) {
+            if (cSeg->key>=(tSeg->key+tSeg->numberOfBlocks)) {
                 break;
             }
             // Invalidate this segment as it overlapped.
-            printf("Invalidating LBA range %p [%d..%d] as it overlaps with new one - [%d..%d]\n", cNode, cNode->key, (cNode->key+cNode->numberOfBlocks), tNode->key, (tNode->key+tNode->numberOfBlocks));
-            cacheMgmt.root=freeNode(cacheMgmt.root, cNode);
-            cNode=tNode->higher;
+            printf("Invalidating LBA range %p [%d..%d] as it overlaps with new one - [%d..%d]\n", cSeg, cSeg->key, (cSeg->key+cSeg->numberOfBlocks), tSeg->key, (tSeg->key+tSeg->numberOfBlocks));
+            cacheMgmt.root=freeNode(cacheMgmt.root, cSeg);
+            cSeg=tSeg->higher;
         }
     }
     // Scan the Thread and make sure all segments are ordered
     // Fetch the first segment in the Thread, one that is pointed by cacheMgmt.lowest.higher.
-    tNode=cacheMgmt.lowest.higher;
+    tSeg=cacheMgmt.lowest.higher;
     currentLba=0;
     currentNB=0;
     i=0;
-    while (tNode!=&cacheMgmt.highest) {
+    while (tSeg!=&cacheMgmt.highest) {
         // Make sure this segment has an LBA that is equal or bigger than previous LBA + number of blocks
-        assert(tNode->key>=currentLba+currentNB);
-        currentLba=tNode->key;
+        assert(tSeg->key>=currentLba+currentNB);
+        currentLba=tSeg->key;
         (void)dumpPathToKey(cacheMgmt.root, currentLba);
         i++;
-        currentNB=tNode->numberOfBlocks;
-        tNode=tNode->higher;
+        currentNB=tSeg->numberOfBlocks;
+        tSeg=tSeg->higher;
     }
 
     // Traverse the Thread and remove each & every node from TAVL and the list. Node gets returned to free pool.
     // Fetch the first segment in the Thread, one that is pointed by cacheMgmt.lowest.higher.
     printf("Removing all nodes in the Thread\n");
-    tNode=cacheMgmt.lowest.higher;
-    while (tNode!=&cacheMgmt.highest) {
+    tSeg=cacheMgmt.lowest.higher;
+    while (tSeg!=&cacheMgmt.highest) {
         // Remove this node
-        nextNode=tNode->higher;
-        cacheMgmt.root=freeNode(cacheMgmt.root, tNode);
-        tNode=nextNode;
+        nextSeg=tSeg->higher;
+        cacheMgmt.root=freeNode(cacheMgmt.root, tSeg);
+        tSeg=nextSeg;
     }
 
     // Traverse the LRU and dump any remaining segments.
     printf("Dumping any segments in LRU, there should be none left\n");
-    tNode=cacheMgmt.lru.head.next;
+    tSeg=cacheMgmt.lru.head.next;
     i=0;
-    while (tNode!=&cacheMgmt.lru.tail) {
-        printf("%dth node %p in the LRU, LBA range [%d..%d]\n", i, tNode, tNode->key, tNode->key+tNode->numberOfBlocks);
+    while (tSeg!=&cacheMgmt.lru.tail) {
+        printf("%dth seg %p in the LRU, LBA range [%d..%d]\n", i, tSeg, tSeg->key, tSeg->key+tSeg->numberOfBlocks);
         // Remove this node
-        tNode=tNode->next;
+        tSeg=tSeg->next;
         i++;
     }
 

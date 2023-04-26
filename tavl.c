@@ -7,15 +7,18 @@
 // Functions
 //-----------------------------------------------------------
 void initSegment(segment_t *pSeg) {
-    pSeg->left = NULL;
-    pSeg->right = NULL;
     pSeg->lower = NULL;
     pSeg->higher = NULL;
     pSeg->prev = NULL;
     pSeg->next = NULL;
     pSeg->key = 0;
     pSeg->numberOfBlocks = 0;
-    pSeg->height = 0;
+}
+
+void initNode(tavl_node_t *pNode) {
+    pNode->left = NULL;
+    pNode->right = NULL;
+    pNode->height = 0;
 }
 
 void pushToTail(segment_t *pSeg, segList_t *pList) {
@@ -103,20 +106,23 @@ void initCache(void) {
 
     // 2. Initialize each segment and push into cacheMgmt.free.
     for (i = 0; i < NUM_OF_SEGMENTS; i++) {
-        initSegment(&node[i]);
-        pushToTail(&node[i], &cacheMgmt.free);
+        initSegment(&segment[i]);
+        initNode(&node[i]);
+        node[i].pSeg=&segment[i];
+        segment[i].pNode=(void *)&node[i];
+        pushToTail(&segment[i], &cacheMgmt.free);
     }
 }
 
-unsigned avlHeight(segment_t *head) {
+unsigned avlHeight(tavl_node_t *head) {
     if (NULL == head) {
         return 0;
     }
     return head->height;
 }
 
-segment_t *rightRotation(segment_t *head) {
-    segment_t *newHead = head->left;
+tavl_node_t *rightRotation(tavl_node_t *head) {
+    tavl_node_t *newHead = head->left;
     head->left = newHead->right;
     newHead->right = head;
     head->height = 1 + MAX(avlHeight(head->left), avlHeight(head->right));
@@ -124,8 +130,8 @@ segment_t *rightRotation(segment_t *head) {
     return newHead;
 }
 
-segment_t *leftRotation(segment_t *head) {
-    segment_t *newHead = head->right;
+tavl_node_t *leftRotation(tavl_node_t *head) {
+    tavl_node_t *newHead = head->right;
     head->right = newHead->left;
     newHead->left = head;
     head->height = 1 + MAX(avlHeight(head->left), avlHeight(head->right));
@@ -133,26 +139,26 @@ segment_t *leftRotation(segment_t *head) {
     return newHead;
 }
 
-segment_t *insertNode(segment_t *head, segment_t *x) {
+tavl_node_t *insertNode(tavl_node_t *head, tavl_node_t *x) {
     if (NULL == head) {
         return x;
     }
-    if (x->key < head->key) {
+    if (x->pSeg->key < head->pSeg->key) {
         head->left = insertNode(head->left, x);
-    } else if (x->key > head->key) {
+    } else if (x->pSeg->key > head->pSeg->key) {
         head->right = insertNode(head->right, x);
     }
     head->height = 1 + MAX(avlHeight(head->left), avlHeight(head->right));
     int bal = avlHeight(head->left) - avlHeight(head->right);
     if (bal > 1) {
-        if (x->key < head->left->key) {
+        if (x->pSeg->key < head->left->pSeg->key) {
             return rightRotation(head);
         } else {
             head->left = leftRotation(head->left);
             return rightRotation(head);
         }
     } else if (bal < -1) {
-        if (x->key > head->right->key) {
+        if (x->pSeg->key > head->right->pSeg->key) {
             return leftRotation(head);
         } else {
             head->right = rightRotation(head->right);
@@ -163,70 +169,43 @@ segment_t *insertNode(segment_t *head, segment_t *x) {
     return head;
 }
 
-segment_t *removeNode(segment_t *head, segment_t *x) {
+tavl_node_t *removeNode(tavl_node_t *head, segment_t *x) {
     if (NULL == head) {
         return NULL;
     }
-    if (x->key < head->key) {
+    if (x->key < head->pSeg->key) {
         // if the node belongs to the left, traverse through left.
         head->left = removeNode(head->left, x);
-    } else if (x->key > head->key) {
+    } else if (x->key > head->pSeg->key) {
         // if the node belongs to the right, traverse through right.
         head->right = removeNode(head->right, x);
     } else {
         // if the node is the tree, copy the key of the node that is just bigger than the key being removed & remove the node from the right
-        segment_t *r = head->right;
+        tavl_node_t *r = head->right;
         if (NULL == head->right) {
-            segment_t *l = head->left;
-            // Specific to TAVL
-            {
-                removeFromThread(head);
-                // If head belongs to any list, we didn't take the path that copies key and removes it from any list.
-                if (NULL!=head->next) {
-                    removeFromList(head);
-                }
-                pushToTail(head, &cacheMgmt.free);
-            }
+            tavl_node_t *l = head->left;
+            // Remove from the thread.
+            removeFromThread(head->pSeg);
             head = l;
         } else if (NULL == head->left) {
-            // Specific to TAVL
-            {
-                removeFromThread(head);
-                // If head belongs to any list, we didn't take the path that copies key and removes it from any list.
-                if (NULL!=head->next) {
-                    removeFromList(head);
-                }
-                pushToTail(head, &cacheMgmt.free);
-            }
+            // Remove from the thread.
+            removeFromThread(head->pSeg);
             head = r;
         } else {
-            while (NULL != r->left) {
-                r = r->left;
-            }
-            head->key = r->key;
-            // Specific to TAVL
-            {
-                // We need to copy most other fields, not just key.
-                head->numberOfBlocks = r->numberOfBlocks;
-                // Since we are going to remove r, r needs to be removed from any list.
-                // This can be done either now or when r gets removed from the tree.
-                // It is easier to do it now because the head needs to replace the place that r is in the list.
-                segment_t *pPrev = head->prev;
-                segment_t *pNext = head->next;
-                // Remove head from the list first.
-                pPrev->next=pNext;
-                pNext->prev=pPrev;
-                // Then put the head in the place r is.
-                pPrev = r->prev;
-                pNext = r->next;
-                head->next=pNext;
-                head->prev=pPrev;
-                pPrev->next=head;
-                pNext->prev=head;
-                r->prev=NULL;
-                r->next=NULL;
-            }
-            head->right = removeNode(head->right, r);
+            // Instead of traversing the tree, use the thread to find the right next one.
+            r = (tavl_node_t *)(head->pSeg->higher->pNode);
+
+            // Swap the segment between head and r.
+            // The segment pointed by r will be preserved in the thread.
+            // The segment pointed by head will be removed from the thread when r node gets removed later.
+            segment_t *pHeadSeg = head->pSeg;
+            segment_t *pRSeg = r->pSeg;
+            head->pSeg = pRSeg;
+            r->pSeg = pHeadSeg;
+            pHeadSeg->pNode = (void *)r;
+            pRSeg->pNode = (void *)head;
+
+            head->right = removeNode(head->right, r->pSeg);
         }
     }
     // unless the tree is empty, check the balance and rebalance the tree before traversing back
@@ -253,11 +232,11 @@ segment_t *removeNode(segment_t *head, segment_t *x) {
     return head;
 }
 
-segment_t *searchAvl(segment_t *head, unsigned key) {
+tavl_node_t *searchAvl(tavl_node_t *head, unsigned key) {
     if (NULL == head) {
         return NULL;
     }
-    unsigned k = head->key;
+    unsigned k = head->pSeg->key;
     if (key == k) {
         return head;
     }
@@ -269,17 +248,17 @@ segment_t *searchAvl(segment_t *head, unsigned key) {
     }
 }
 
-segment_t *searchTavl(segment_t *head, unsigned lba) {
+tavl_node_t *searchTavl(tavl_node_t *head, unsigned lba) {
     if (NULL == head) {
         return NULL;
     }
-    unsigned k = head->key;
+    unsigned k = head->pSeg->key;
     if (lba == k) {
         return head;
     }
     if (k > lba) {
         if (NULL==head->left) {
-            return head->lower;
+            return (tavl_node_t *)(head->pSeg->lower->pNode);
         }
         return searchTavl(head->left, lba);
     }
@@ -291,26 +270,26 @@ segment_t *searchTavl(segment_t *head, unsigned lba) {
     }
 }
 
-segment_t *insertToTavl(segment_t *head, segment_t *x) {
+tavl_node_t *insertToTavl(tavl_node_t *head, tavl_node_t *x) {
     if (NULL == head) {
-        cacheMgmt.lowest.higher=x;
-        x->lower=&cacheMgmt.lowest;
-        cacheMgmt.highest.lower=x;
-        x->higher=&cacheMgmt.highest;
+        cacheMgmt.lowest.higher=x->pSeg;
+        x->pSeg->lower=&cacheMgmt.lowest;
+        cacheMgmt.highest.lower=x->pSeg;
+        x->pSeg->higher=&cacheMgmt.highest;
         cacheMgmt.active_nodes++;
         return x;
     }
-    if (x->key < head->key) {
+    if (x->pSeg->key < head->pSeg->key) {
         if (NULL==head->left) {
-            insertBefore(x, head);
+            insertBefore(x->pSeg, head->pSeg);
             head->left = x;
             cacheMgmt.active_nodes++;
         } else {
             head->left = insertToTavl(head->left, x);
         }
-    } else if (x->key > head->key) {
+    } else if (x->pSeg->key > head->pSeg->key) {
         if (NULL==head->right) {
-            insertAfter(x, head);
+            insertAfter(x->pSeg, head->pSeg);
             head->right = x;
             cacheMgmt.active_nodes++;
         } else {
@@ -320,14 +299,14 @@ segment_t *insertToTavl(segment_t *head, segment_t *x) {
     head->height = 1 + MAX(avlHeight(head->left), avlHeight(head->right));
     int bal = avlHeight(head->left) - avlHeight(head->right);
     if (bal > 1) {
-        if (x->key < head->left->key) {
+        if (x->pSeg->key < head->left->pSeg->key) {
             return rightRotation(head);
         } else {
             head->left = leftRotation(head->left);
             return rightRotation(head);
         }
     } else if (bal < -1) {
-        if (x->key > head->right->key) {
+        if (x->pSeg->key > head->right->pSeg->key) {
             return leftRotation(head);
         } else {
             head->right = rightRotation(head->right);
@@ -337,26 +316,29 @@ segment_t *insertToTavl(segment_t *head, segment_t *x) {
     return head;
 }
 
-segment_t *freeNode(segment_t *root, segment_t *x) {
-    // Remove the node from AVL tree & return the new root
+tavl_node_t *freeNode(tavl_node_t *root, segment_t *x) {
+    removeFromList(x);
+    pushToTail(x, &cacheMgmt.free);
+
+    // Remove the node from TAVL tree & return the new root
     cacheMgmt.active_nodes--;
     return removeNode(root, x);
 }
 
-segment_t *dumpPathToKey(segment_t *head, unsigned lba) {
+tavl_node_t *dumpPathToKey(tavl_node_t *head, unsigned lba) {
     if (NULL == head) {
         printf("Unknown Key\n");
         return NULL;
     }
-    unsigned k = head->key;
+    unsigned k = head->pSeg->key;
     if (lba == k) {
-        printf("(%d..%d)\n", lba, lba+head->numberOfBlocks);
+        printf("(%d..%d)\n", lba, lba+head->pSeg->numberOfBlocks);
         return head;
     }
     if (k > lba) {
         if (NULL==head->left) {
             printf("Unknown Key\n");
-            return head->lower;
+            return (tavl_node_t *)(head->pSeg->lower->pNode);
         }
         printf("l-");
         return dumpPathToKey(head->left, lba);
