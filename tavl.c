@@ -7,8 +7,6 @@
 // Functions
 //-----------------------------------------------------------
 void initSegment(segment_t *pSeg) {
-    pSeg->lower = NULL;
-    pSeg->higher = NULL;
     pSeg->prev = NULL;
     pSeg->next = NULL;
     pSeg->key = 0;
@@ -18,6 +16,8 @@ void initSegment(segment_t *pSeg) {
 void initNode(tavl_node_t *pNode) {
     pNode->left = NULL;
     pNode->right = NULL;
+    pNode->lower = NULL;
+    pNode->higher = NULL;
     pNode->height = 0;
 }
 
@@ -52,29 +52,29 @@ segment_t *popFromHead(segList_t *pList) {
     return pSeg;
 }
 
-void removeFromThread(segment_t *pSeg) {
-    segment_t *pLower = pSeg->lower;
-    segment_t *pHigher = pSeg->higher;
+void removeFromThread(tavl_node_t *pNode) {
+    tavl_node_t *pLower = pNode->lower;
+    tavl_node_t *pHigher = pNode->higher;
     pLower->higher=pHigher;
     pHigher->lower=pLower;
-    pSeg->lower=NULL;
-    pSeg->higher=NULL;
+    pNode->lower=NULL;
+    pNode->higher=NULL;
 }
 
-void insertBefore(segment_t *pSeg, segment_t *pTarget) {
-    segment_t *pLower = pTarget->lower;
-    pLower->higher=pSeg;
-    pTarget->lower=pSeg;
-    pSeg->lower=pLower;
-    pSeg->higher=pTarget;
+void insertBefore(tavl_node_t *pNode, tavl_node_t *pTarget) {
+    tavl_node_t *pLower = pTarget->lower;
+    pLower->higher=pNode;
+    pTarget->lower=pNode;
+    pNode->lower=pLower;
+    pNode->higher=pTarget;
 }
 
-void insertAfter(segment_t *pSeg, segment_t *pTarget) {
-    segment_t *pHigher = pTarget->higher;
-    pHigher->lower=pSeg;
-    pTarget->higher=pSeg;
-    pSeg->lower=pTarget;
-    pSeg->higher=pHigher;
+void insertAfter(tavl_node_t *pNode, tavl_node_t *pTarget) {
+    tavl_node_t *pHigher = pTarget->higher;
+    pHigher->lower=pNode;
+    pTarget->higher=pNode;
+    pNode->lower=pTarget;
+    pNode->higher=pHigher;
 }
 
 void initCache(void) {
@@ -83,8 +83,8 @@ void initCache(void) {
     // 1. Initialize cacheMgmt.
     cacheMgmt.root = NULL;
     cacheMgmt.active_nodes = 0;
-    initSegment(&cacheMgmt.lowest);
-    initSegment(&cacheMgmt.highest);
+    initNode(&cacheMgmt.lowest);
+    initNode(&cacheMgmt.highest);
     cacheMgmt.lowest.higher=&cacheMgmt.highest;
     cacheMgmt.highest.lower=&cacheMgmt.lowest;
     initSegment(&cacheMgmt.locked.head);
@@ -185,15 +185,15 @@ tavl_node_t *removeNode(tavl_node_t *head, segment_t *x) {
         if (NULL == head->right) {
             tavl_node_t *l = head->left;
             // Remove from the thread.
-            removeFromThread(head->pSeg);
+            removeFromThread(head);
             head = l;
         } else if (NULL == head->left) {
             // Remove from the thread.
-            removeFromThread(head->pSeg);
+            removeFromThread(head);
             head = r;
         } else {
             // Instead of traversing the tree, use the thread to find the right next one.
-            r = (tavl_node_t *)(head->pSeg->higher->pNode);
+            r = (tavl_node_t *)(head->higher);
 
             // Swap the segment between head and r.
             // The segment pointed by r will be preserved in the thread.
@@ -258,7 +258,7 @@ tavl_node_t *searchTavl(tavl_node_t *head, unsigned lba) {
     }
     if (k > lba) {
         if (NULL==head->left) {
-            return (tavl_node_t *)(head->pSeg->lower->pNode);
+            return (tavl_node_t *)(head->lower);
         }
         return searchTavl(head->left, lba);
     }
@@ -272,16 +272,16 @@ tavl_node_t *searchTavl(tavl_node_t *head, unsigned lba) {
 
 tavl_node_t *insertToTavl(tavl_node_t *head, tavl_node_t *x) {
     if (NULL == head) {
-        cacheMgmt.lowest.higher=x->pSeg;
-        x->pSeg->lower=&cacheMgmt.lowest;
-        cacheMgmt.highest.lower=x->pSeg;
-        x->pSeg->higher=&cacheMgmt.highest;
+        cacheMgmt.lowest.higher=x;
+        x->lower=&cacheMgmt.lowest;
+        cacheMgmt.highest.lower=x;
+        x->higher=&cacheMgmt.highest;
         cacheMgmt.active_nodes++;
         return x;
     }
     if (x->pSeg->key < head->pSeg->key) {
         if (NULL==head->left) {
-            insertBefore(x->pSeg, head->pSeg);
+            insertBefore(x, head);
             head->left = x;
             cacheMgmt.active_nodes++;
         } else {
@@ -289,7 +289,7 @@ tavl_node_t *insertToTavl(tavl_node_t *head, tavl_node_t *x) {
         }
     } else if (x->pSeg->key > head->pSeg->key) {
         if (NULL==head->right) {
-            insertAfter(x->pSeg, head->pSeg);
+            insertAfter(x, head);
             head->right = x;
             cacheMgmt.active_nodes++;
         } else {
@@ -338,7 +338,7 @@ tavl_node_t *dumpPathToKey(tavl_node_t *head, unsigned lba) {
     if (k > lba) {
         if (NULL==head->left) {
             printf("Unknown Key\n");
-            return (tavl_node_t *)(head->pSeg->lower->pNode);
+            return (tavl_node_t *)(head->lower);
         }
         printf("l-");
         return dumpPathToKey(head->left, lba);

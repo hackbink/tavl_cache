@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include "tavl.h"
 
+
 //-----------------------------------------------------------
 // Global variables
 //-----------------------------------------------------------
@@ -16,7 +17,7 @@ void main(void) {
     time_t t;
     unsigned i;
     segment_t *tSeg, *cSeg, *nextSeg;
-    tavl_node_t *cNode;
+    tavl_node_t *cNode,*higherNode, *nextNode;
     unsigned currentLba, currentNB;
 
     // srand(time(NULL)) initializes the random seed with the current time.
@@ -41,7 +42,7 @@ void main(void) {
         tSeg->numberOfBlocks = 10+(rand()%20);
         cNode=searchTavl(cacheMgmt.root, tSeg->key);
         if (NULL!=cNode) {
-            if (&cacheMgmt.lowest!=cNode->pSeg) {
+            if (&cacheMgmt.lowest!=cNode) {
                 printf("searchTavl(%d) returned cNode:%p with LBA range [%d..%d]\n", tSeg->key, cNode, cNode->pSeg->key, (cNode->pSeg->key+cNode->pSeg->numberOfBlocks));
                 if ((cNode->pSeg->key+cNode->pSeg->numberOfBlocks)>tSeg->key) {
                     printf("%dth LBA range [%d..%d] hits with [%d..%d]. Invalidating...\n", i, tSeg->key, (tSeg->key+tSeg->numberOfBlocks), cNode->pSeg->key, (cNode->pSeg->key+cNode->pSeg->numberOfBlocks));
@@ -55,8 +56,9 @@ void main(void) {
         pushToTail(tSeg, &cacheMgmt.lru);
 
         // Manage coherency by invalidating any segment that overlaps with the new one.
-        cSeg=tSeg->higher;
-        while (&cacheMgmt.highest!=cSeg) {
+        higherNode=((tavl_node_t *)(tSeg->pNode))->higher;
+        cSeg=higherNode->pSeg;
+        while (&cacheMgmt.highest!=higherNode) {
             // Check if cNode is outside of the new one's range. If yes, stop.
             if (cSeg->key>=(tSeg->key+tSeg->numberOfBlocks)) {
                 break;
@@ -64,34 +66,35 @@ void main(void) {
             // Invalidate this segment as it overlapped.
             printf("Invalidating LBA range %p [%d..%d] as it overlaps with new one - [%d..%d]\n", cSeg, cSeg->key, (cSeg->key+cSeg->numberOfBlocks), tSeg->key, (tSeg->key+tSeg->numberOfBlocks));
             cacheMgmt.root=freeNode(cacheMgmt.root, cSeg);
-            cSeg=tSeg->higher;
+            higherNode=((tavl_node_t *)(tSeg->pNode))->higher;
+            cSeg=higherNode->pSeg;
         }
     }
     // Scan the Thread and make sure all segments are ordered
     // Fetch the first segment in the Thread, one that is pointed by cacheMgmt.lowest.higher.
-    tSeg=cacheMgmt.lowest.higher;
+    cNode=cacheMgmt.lowest.higher;
     currentLba=0;
     currentNB=0;
     i=0;
-    while (tSeg!=&cacheMgmt.highest) {
+    while (cNode!=&cacheMgmt.highest) {
         // Make sure this segment has an LBA that is equal or bigger than previous LBA + number of blocks
-        assert(tSeg->key>=currentLba+currentNB);
-        currentLba=tSeg->key;
+        assert(cNode->pSeg->key>=currentLba+currentNB);
+        currentLba=cNode->pSeg->key;
         (void)dumpPathToKey(cacheMgmt.root, currentLba);
         i++;
-        currentNB=tSeg->numberOfBlocks;
-        tSeg=tSeg->higher;
+        currentNB=cNode->pSeg->numberOfBlocks;
+        cNode=cNode->higher;
     }
 
     // Traverse the Thread and remove each & every node from TAVL and the list. Node gets returned to free pool.
     // Fetch the first segment in the Thread, one that is pointed by cacheMgmt.lowest.higher.
     printf("Removing all nodes in the Thread\n");
-    tSeg=cacheMgmt.lowest.higher;
-    while (tSeg!=&cacheMgmt.highest) {
+    cNode=cacheMgmt.lowest.higher;
+    while (cNode!=&cacheMgmt.highest) {
         // Remove this node
-        nextSeg=tSeg->higher;
-        cacheMgmt.root=freeNode(cacheMgmt.root, tSeg);
-        tSeg=nextSeg;
+        nextNode=cNode->higher;
+        cacheMgmt.root=freeNode(cacheMgmt.root, cNode->pSeg);
+        cNode=nextNode;
     }
 
     // Traverse the LRU and dump any remaining segments.

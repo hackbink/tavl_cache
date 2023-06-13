@@ -11,9 +11,6 @@
 // Structure definitions
 //-----------------------------------------------------------
 typedef struct segment {
-    // Lower and Higher pointer used for thread list (sorted in LBA)
-    struct segment  *lower;
-    struct segment  *higher;
     // Previous and Next pointer used for Locked/LRU/Dirty/Free list
     struct segment  *prev;
     struct segment  *next;
@@ -26,6 +23,9 @@ typedef struct tavl_node {
     // Left and right pointer used for tree
     struct tavl_node  *left;
     struct tavl_node  *right;
+    // Lower and Higher pointer used for thread list (sorted in LBA)
+    struct tavl_node  *lower;
+    struct tavl_node  *higher;
     segment_t       *pSeg;
     unsigned        height;
 } tavl_node_t;
@@ -37,8 +37,8 @@ typedef struct segList {
 
 typedef struct cManagement {
     tavl_node_t *root;
-    segment_t   lowest;
-    segment_t   highest;
+    tavl_node_t lowest;
+    tavl_node_t highest;
     segList_t   locked;
     segList_t   lru;
     segList_t   dirty;
@@ -87,25 +87,25 @@ extern void removeFromList(segment_t *pSeg);
 extern segment_t *popFromHead(segList_t *pList);
 
 /**
- *  @brief  Removes the given segment from the LBA ordered thread.
- *  @param  segment_t *pSeg - the segment to be removed
+ *  @brief  Removes the given node from the LBA ordered thread.
+ *  @param  tavl_node_t *pNode - the node to be removed
  *  @return None
  */
-extern void removeFromThread(segment_t *pSeg);
+extern void removeFromThread(tavl_node_t *pNode);
 
 /**
- *  @brief  Inserts the given segment before the target.
- *  @param  segment_t *pSeg - segment to be inserted, segment_t *pTarget - target segment
+ *  @brief  Inserts the given node before the target.
+ *  @param  tavl_node_t *pNode - the node to be inserted, tavl_node_t *pTarget - target node
  *  @return None
  */
-extern void insertBefore(segment_t *pSeg, segment_t *pTarget);
+extern void insertBefore(tavl_node_t *pNode, tavl_node_t *pTarget);
 
 /**
- *  @brief  Inserts the given segment after the target.
- *  @param  segment_t *pSeg - segment to be inserted, segment_t *pTarget - target segment
+ *  @brief  Inserts the given node after the target.
+ *  @param  tavl_node_t *pNode - the node to be inserted, tavl_node_t *pTarget - target node
  *  @return None
  */
-extern void insertAfter(segment_t *pSeg, segment_t *pTarget);
+extern void insertAfter(tavl_node_t *pNode, tavl_node_t *pTarget);
 
 /**
  *  @brief  Initializes the whole cache management structure - cacheMgmt, node[]

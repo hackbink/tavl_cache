@@ -110,6 +110,9 @@ With SGL buffer, TAVL search result for read will be handled as following.
 For read, data coherency is managed when inserting a cache segment either before or after reading from the media.
 
 NOTE : 
+To build the code in *nix, run 'make'. Run with "./test".
+TO build the code in Windows with gcc(mingw), run "gcc tavl.c main.c -o main.exe". Run with "main".
+
 The test code in main.c,
 - creates 100 cache segments into the free pool,
 - assigns a random LBA [0.1999] with random number of blocks [10..29] to each cache segment,
