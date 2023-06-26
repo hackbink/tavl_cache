@@ -118,10 +118,10 @@ The test code in main.c,
 - assigns a random LBA [0.19999] with random number of blocks [10..29] to each cache segment,
 - inserts each cache segment into TAVL tree and LRU list,
 - finds & invalidates any cache segments in the TAVL tree with range overlap, to maintain coherency,
-- once all cache segments (except the ones invalidated due to an overlap) are in TAVL tree, check the sanity of the tree,
-- for 1,000,000 loops, add a cache segment with a random LBA [0.19999] with random number of blocks [10..29]
-- while looping, remove the least recently used cache segment if there is no free cache segment available,
-- check the sanity of the tree,
+- once all cache segments (except the ones invalidated due to an overlap) are in TAVL tree, checks the sanity of the tree,
+- for 1,000,000 loops, adds a cache segment with a random LBA [0.19999] with random number of blocks [10..29]
+- while looping, removes the least recently used cache segment if there is no free cache segment available,
+- checks the sanity of the tree,
 - then removes each and every cache segment in the thread,
 - checks if both the TAVL tree and the LRU list are empty.
 
