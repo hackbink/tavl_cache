@@ -110,15 +110,18 @@ With SGL buffer, TAVL search result for read will be handled as following.
 For read, data coherency is managed when inserting a cache segment either before or after reading from the media.
 
 NOTE : 
-To build the code in *nix, run 'make'. Run with "./test".
-TO build the code in Windows with gcc(mingw), run "gcc tavl.c main.c -o main.exe". Run with "main".
+To build the code in *nix, run 'make'. Run the test binary with "./test".
+To build the code in Windows with gcc(mingw), run "make". Run the test binary with "main.exe".
 
 The test code in main.c,
 - creates 100 cache segments into the free pool,
-- assigns a random LBA [0.1999] with random number of blocks [10..29] to each cache segment,
+- assigns a random LBA [0.19999] with random number of blocks [10..29] to each cache segment,
 - inserts each cache segment into TAVL tree and LRU list,
 - finds & invalidates any cache segments in the TAVL tree with range overlap, to maintain coherency,
-- once all cache segments (except the ones invalidated due to an overlap) are in TAVL tree, dump the content of the TAVL tree,
+- once all cache segments (except the ones invalidated due to an overlap) are in TAVL tree, check the sanity of the tree,
+- for 1,000,000 loops, add a cache segment with a random LBA [0.19999] with random number of blocks [10..29]
+- while looping, remove the least recently used cache segment if there is no free cache segment available,
+- check the sanity of the tree,
 - then removes each and every cache segment in the thread,
 - checks if both the TAVL tree and the LRU list are empty.
 
@@ -126,53 +129,110 @@ It assumes that any cache segments with overlap need to be invalidated & freed. 
 
 Example of TAVL tree dump :
 
-l-l-l-l-l-(49..73) : From the root, take left-left-left-left-left to arrive to the node with LBA from 49 till 73.
+l(7)-l(6)-l(5)-l(4)-r(3)-l(2)-l(1)-(3149..3163)(1) : 
+From the root, take left-left-left-left-right-left-left to arrive to the node with LBA from 3149 till 3163.
 
-(1258..1276) : The root of the TAVL tree with LBA from 1258 till 1276.
+(13156..13166)(8) : The root of the TAVL tree with LBA from 13156 till 13166, with depth of 8.
 
 ```
-l-l-l-l-l-(49..73)
-l-l-l-l-(75..87)
-l-l-l-(132..142)
-l-l-l-r-l-(166..182)
-l-l-l-r-(198..212)
-l-l-(213..226)
-l-l-r-(247..268)
-l-l-r-r-(288..306)
-l-l-r-r-r-(331..349)
-l-(354..371)
-l-r-l-l-l-(483..506)
-l-r-l-l-l-r-(543..558)
-l-r-l-l-(573..583)
-l-r-l-l-r-(587..605)
-l-r-l-(623..638)
-l-r-l-r-l-(689..711)
-l-r-l-r-(749..772)
-l-r-l-r-r-(782..797)
-l-r-(797..825)
-l-r-r-l-l-(829..857)
-l-r-r-l-l-r-(900..914)
-l-r-r-l-(950..977)
-l-r-r-(979..1002)
-l-r-r-r-l-(1060..1071)
-l-r-r-r-(1093..1110)
-l-r-r-r-r-(1192..1208)
-(1258..1276)
-r-l-l-(1299..1321)
-r-l-l-r-(1342..1360)
-r-l-(1388..1403)
-r-l-r-(1434..1449)
-r-(1502..1515)
-r-r-l-l-l-(1552..1580)
-r-r-l-l-(1581..1592)
-r-r-l-(1597..1623)
-r-r-l-r-l-(1662..1682)
-r-r-l-r-l-r-(1684..1709)
-r-r-l-r-(1751..1778)
-r-r-(1787..1813)
-r-r-r-l-(1849..1871)
-r-r-r-l-r-(1871..1900)
-r-r-r-l-r-r-(1904..1919)
-r-r-r-(1952..1964)
-r-r-r-r-(1967..1979)
+l(7)-l(6)-l(5)-l(4)-l(2)-l(1)-(1490..1503)(1)
+l(7)-l(6)-l(5)-l(4)-l(2)-(2177..2199)(2)
+l(7)-l(6)-l(5)-l(4)-l(2)-r(1)-(2757..2781)(1)
+l(7)-l(6)-l(5)-l(4)-(2998..3025)(4)
+l(7)-l(6)-l(5)-l(4)-r(3)-l(2)-l(1)-(3149..3163)(1)
+l(7)-l(6)-l(5)-l(4)-r(3)-l(2)-(3232..3260)(2)
+l(7)-l(6)-l(5)-l(4)-r(3)-(3996..4020)(3)
+l(7)-l(6)-l(5)-l(4)-r(3)-r(2)-l(1)-(4022..4036)(1)
+l(7)-l(6)-l(5)-l(4)-r(3)-r(2)-(4351..4364)(2)
+l(7)-l(6)-l(5)-(4563..4583)(5)
+l(7)-l(6)-l(5)-r(4)-l(2)-l(1)-(4886..4915)(1)
+l(7)-l(6)-l(5)-r(4)-l(2)-(5127..5147)(2)
+l(7)-l(6)-l(5)-r(4)-l(2)-r(1)-(5234..5244)(1)
+l(7)-l(6)-l(5)-r(4)-(5416..5439)(4)
+l(7)-l(6)-l(5)-r(4)-r(3)-l(1)-(5610..5632)(1)
+l(7)-l(6)-l(5)-r(4)-r(3)-(5884..5904)(3)
+l(7)-l(6)-l(5)-r(4)-r(3)-r(2)-l(1)-(5924..5952)(1)
+l(7)-l(6)-l(5)-r(4)-r(3)-r(2)-(5965..5979)(2)
+l(7)-l(6)-l(5)-r(4)-r(3)-r(2)-r(1)-(5994..6013)(1)
+l(7)-l(6)-(6032..6044)(6)
+l(7)-l(6)-r(5)-l(3)-l(2)-(6116..6130)(2)
+l(7)-l(6)-r(5)-l(3)-l(2)-r(1)-(6160..6174)(1)
+l(7)-l(6)-r(5)-l(3)-(6196..6215)(3)
+l(7)-l(6)-r(5)-l(3)-r(2)-(6221..6233)(2)
+l(7)-l(6)-r(5)-l(3)-r(2)-r(1)-(6255..6279)(1)
+l(7)-l(6)-r(5)-(6279..6290)(5)
+l(7)-l(6)-r(5)-r(4)-l(2)-(6348..6363)(2)
+l(7)-l(6)-r(5)-r(4)-l(2)-r(1)-(6534..6562)(1)
+l(7)-l(6)-r(5)-r(4)-(6611..6629)(4)
+l(7)-l(6)-r(5)-r(4)-r(3)-l(2)-l(1)-(7171..7181)(1)
+l(7)-l(6)-r(5)-r(4)-r(3)-l(2)-(8449..8461)(2)
+l(7)-l(6)-r(5)-r(4)-r(3)-(8519..8536)(3)
+l(7)-l(6)-r(5)-r(4)-r(3)-r(2)-(8590..8605)(2)
+l(7)-l(6)-r(5)-r(4)-r(3)-r(2)-r(1)-(8865..8887)(1)
+l(7)-(9003..9028)(7)
+l(7)-r(6)-l(4)-l(3)-l(1)-(9280..9308)(1)
+l(7)-r(6)-l(4)-l(3)-(9334..9351)(3)
+l(7)-r(6)-l(4)-l(3)-r(2)-l(1)-(9354..9380)(1)
+l(7)-r(6)-l(4)-l(3)-r(2)-(9424..9442)(2)
+l(7)-r(6)-l(4)-l(3)-r(2)-r(1)-(9758..9772)(1)
+l(7)-r(6)-l(4)-(9944..9963)(4)
+l(7)-r(6)-l(4)-r(2)-l(1)-(10025..10044)(1)
+l(7)-r(6)-l(4)-r(2)-(10098..10111)(2)
+l(7)-r(6)-l(4)-r(2)-r(1)-(10125..10148)(1)
+l(7)-r(6)-(11059..11070)(6)
+l(7)-r(6)-r(5)-l(4)-l(2)-l(1)-(11251..11275)(1)
+l(7)-r(6)-r(5)-l(4)-l(2)-(11284..11311)(2)
+l(7)-r(6)-r(5)-l(4)-l(2)-r(1)-(11390..11418)(1)
+l(7)-r(6)-r(5)-l(4)-(11816..11833)(4)
+l(7)-r(6)-r(5)-l(4)-r(3)-l(2)-(11928..11941)(2)
+l(7)-r(6)-r(5)-l(4)-r(3)-l(2)-r(1)-(11980..11994)(1)
+l(7)-r(6)-r(5)-l(4)-r(3)-(12003..12015)(3)
+l(7)-r(6)-r(5)-l(4)-r(3)-r(2)-l(1)-(12046..12056)(1)
+l(7)-r(6)-r(5)-l(4)-r(3)-r(2)-(12056..12071)(2)
+l(7)-r(6)-r(5)-l(4)-r(3)-r(2)-r(1)-(12240..12259)(1)
+l(7)-r(6)-r(5)-(12304..12328)(5)
+l(7)-r(6)-r(5)-r(3)-l(1)-(12490..12519)(1)
+l(7)-r(6)-r(5)-r(3)-(12738..12764)(3)
+l(7)-r(6)-r(5)-r(3)-r(2)-(12900..12914)(2)
+l(7)-r(6)-r(5)-r(3)-r(2)-r(1)-(13100..13121)(1)
+(13156..13166)(8)
+r(6)-l(5)-l(4)-l(3)-l(2)-(13242..13261)(2)
+r(6)-l(5)-l(4)-l(3)-l(2)-r(1)-(13391..13420)(1)
+r(6)-l(5)-l(4)-l(3)-(13449..13459)(3)
+r(6)-l(5)-l(4)-l(3)-r(1)-(13478..13496)(1)
+r(6)-l(5)-l(4)-(13545..13572)(4)
+r(6)-l(5)-l(4)-r(3)-l(2)-l(1)-(13603..13620)(1)
+r(6)-l(5)-l(4)-r(3)-l(2)-(13661..13683)(2)
+r(6)-l(5)-l(4)-r(3)-l(2)-r(1)-(13916..13927)(1)
+r(6)-l(5)-l(4)-r(3)-(13959..13969)(3)
+r(6)-l(5)-l(4)-r(3)-r(2)-l(1)-(13979..14007)(1)
+r(6)-l(5)-l(4)-r(3)-r(2)-(14379..14389)(2)
+r(6)-l(5)-l(4)-r(3)-r(2)-r(1)-(14498..14508)(1)
+r(6)-l(5)-(14594..14608)(5)
+r(6)-l(5)-r(4)-l(3)-l(1)-(14615..14637)(1)
+r(6)-l(5)-r(4)-l(3)-(14754..14769)(3)
+r(6)-l(5)-r(4)-l(3)-r(2)-(14776..14796)(2)
+r(6)-l(5)-r(4)-l(3)-r(2)-r(1)-(14883..14899)(1)
+r(6)-l(5)-r(4)-(14951..14964)(4)
+r(6)-l(5)-r(4)-r(2)-l(1)-(14974..14984)(1)
+r(6)-l(5)-r(4)-r(2)-(15002..15020)(2)
+r(6)-l(5)-r(4)-r(2)-r(1)-(15030..15054)(1)
+r(6)-(15109..15126)(6)
+r(6)-r(5)-l(3)-l(1)-(15156..15175)(1)
+r(6)-r(5)-l(3)-(15260..15289)(3)
+r(6)-r(5)-l(3)-r(2)-l(1)-(15332..15359)(1)
+r(6)-r(5)-l(3)-r(2)-(15512..15541)(2)
+r(6)-r(5)-(15650..15668)(5)
+r(6)-r(5)-r(4)-l(3)-l(2)-l(1)-(15709..15727)(1)
+r(6)-r(5)-r(4)-l(3)-l(2)-(17474..17498)(2)
+r(6)-r(5)-r(4)-l(3)-(17621..17650)(3)
+r(6)-r(5)-r(4)-l(3)-r(2)-l(1)-(18406..18422)(1)
+r(6)-r(5)-r(4)-l(3)-r(2)-(18692..18711)(2)
+r(6)-r(5)-r(4)-l(3)-r(2)-r(1)-(19092..19120)(1)
+r(6)-r(5)-r(4)-(19507..19532)(4)
+r(6)-r(5)-r(4)-r(3)-l(2)-(19599..19620)(2)
+r(6)-r(5)-r(4)-r(3)-l(2)-r(1)-(19759..19786)(1)
+r(6)-r(5)-r(4)-r(3)-(19843..19858)(3)
+r(6)-r(5)-r(4)-r(3)-r(2)-l(1)-(19871..19894)(1)
+r(6)-r(5)-r(4)-r(3)-r(2)-(19967..19988)(2)
 ```

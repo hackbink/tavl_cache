@@ -1,11 +1,13 @@
 #ifndef __TAVL_H
 #define __TAVL_H
 
+#include <stdbool.h>
+
 //-----------------------------------------------------------
 // Macros
 //-----------------------------------------------------------
-#define NUM_OF_SEGMENTS     (100)
 #define MAX(x,y) (((x) >= (y)) ? (x) : (y))
+#define MIN(x,y) (((x) >= (y)) ? (y) : (x))
 
 //-----------------------------------------------------------
 // Structure definitions
@@ -35,22 +37,26 @@ typedef struct segList {
     segment_t   tail;
 } segList_t;
 
-typedef struct cManagement {
+typedef struct tavl {
     tavl_node_t *root;
     tavl_node_t lowest;
     tavl_node_t highest;
+    int         active_nodes;
+} tavl_t;
+
+typedef struct cManagement {
+	tavl_t		tavl;
     segList_t   locked;
     segList_t   lru;
     segList_t   dirty;
     segList_t   free;
-    int         active_nodes;
 } cManagement_t;
 
 //-----------------------------------------------------------
 // Global variables
 //-----------------------------------------------------------
-extern  segment_t       segment[NUM_OF_SEGMENTS];
-extern  tavl_node_t     node[NUM_OF_SEGMENTS];
+extern  segment_t       *pSegmentPool;
+extern	tavl_node_t     *pNodePool;
 extern  cManagement_t   cacheMgmt;
 
 
@@ -63,6 +69,13 @@ extern  cManagement_t   cacheMgmt;
  *  @return None
  */
 extern void initSegment(segment_t *pSeg);
+
+/**
+ *  @brief  Initializes the given node with a clean state
+ *  @param  tavl_node_t *pNode - the node to be initialized
+ *  @return None
+ */
+extern	void initNode(tavl_node_t *pNode);
 
 /**
  *  @brief  Inserts the given segment into the tail of the given list - Locked, LRU, Dirty or Free
@@ -106,13 +119,6 @@ extern void insertBefore(tavl_node_t *pNode, tavl_node_t *pTarget);
  *  @return None
  */
 extern void insertAfter(tavl_node_t *pNode, tavl_node_t *pTarget);
-
-/**
- *  @brief  Initializes the whole cache management structure - cacheMgmt, node[]
- *  @param  None
- *  @return None
- */
-extern void initCache(void);
 
 /**
  *  @brief  Returns the heigh of the given node
@@ -171,26 +177,25 @@ extern tavl_node_t *searchAvl(tavl_node_t *head, unsigned key);
 extern tavl_node_t *searchTavl(tavl_node_t *head, unsigned lba);
 
 /**
- *  @brief  Inserts the given segment into the given TAVL tree.
+ *  @brief  Inserts the given node into the given TAVL tree.
  *          In other words,
- *          1. inserts the given segment into AVL tree
- *          2. inserts the given segment into the Thread
- *  @param  tavl_node_t *head - root of the tree, 
- *          tavl_node_t *x - pointer to the segment to be inserted
+ *          1. inserts the given node into AVL tree
+ *          2. inserts the given node into the Thread
+ *  @param  tavl_t *pTavl - pointer to the tavl structure
+ *          tavl_node_t *x - pointer to the node to be inserted
  *  @return New root of the tree
  */
-extern tavl_node_t *insertToTavl(tavl_node_t *head, tavl_node_t *x);
+extern tavl_node_t *insertToTavl(tavl_t *pTavl, tavl_node_t *x);
 
 // Remove a node from AVL tree, thread and list the push to free list.
 // Specified list can be Locked/LRU/Dirty.
 // Returns the new root.
 /**
- *  @brief  Remove a segment_t from TAVL tree and list then push to the free list.
- *  @param  tavl_node_t *root - root of the TAVL tree, or NULL
- *          segment_t *x - segment to be removed
- *  @return New root of the tree
+ *  @brief  Remove a segment_t from cache management TAVL tree then push to the free list.
+ *  @param  segment_t *x - segment to be removed
+ *  @return None
  */
-extern tavl_node_t *freeNode(tavl_node_t *root, segment_t *x);
+extern	void freeNode(segment_t *x);
 
 /**
  *  @brief  Searches the given TAVL tree for the given LBA and dump the path
@@ -200,5 +205,25 @@ extern tavl_node_t *freeNode(tavl_node_t *root, segment_t *x);
  */
 extern tavl_node_t *dumpPathToKey(tavl_node_t *head, unsigned lba);
 
+/**
+ *  @brief  Sanity check for TAVL tree
+ *  @param  tavl_t *pTavl - pointer to the tavl structure
+ *  @return None
+ */
+extern void tavlSanityCheck(tavl_t *pTavl);
+
+/**
+ *  @brief  Checks the height of all nodes under the given node
+ *  @param  tavl_node_t *head - a node in the AVL tree, or NULL
+ *  @return bool - true if heights are correct
+ */
+extern bool tavlHeightCheck(tavl_node_t *head);
+
+/**
+ *  @brief  Initializes the whole cache management structure - cacheMgmt, 
+ *  @param  int maxNode - number of nodes
+ *  @return None
+ */
+extern	void initCache(int maxNode);
 
 #endif // __TAVL_H
